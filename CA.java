@@ -7,6 +7,7 @@ class CA {
 	int[] nextState;
 	int[] G_state;
 	int[] G_state2;
+	static int cnt;
 
 	static int round;
 
@@ -20,7 +21,7 @@ class CA {
 			this.state1[i] = 0;
 			this.G_state[i] = 0;
 		}
-		for (int i=2; i < state1.length-2; i++) {
+		for (int i=0; i < startConfig.length(); i++) {
 			this.state2[i+2] = Integer.parseInt( "" + startConfig.charAt(i) );
 		}
 
@@ -49,6 +50,7 @@ class CA {
     	return (n >> k) & 1;
 	}
 
+	//bitwise modular addition (XOR) von 2 arrays 
 	public static int[] arrayAdd(int[] a1, int[] a2) {
 		int[] newArray = new int[a1.length];
 		if (a1.length != a2.length) {
@@ -66,7 +68,7 @@ class CA {
 		for(int i=0; i < state.length; i++) {
 			if(state[i] == 1) {
 				System.out.print("#");
-			} else if(state == 0) {
+			} else if(state[i] == 0) {
 				System.out.print("_");
 			} else {
 				System.out.print(state[i]);
@@ -112,6 +114,7 @@ class CA {
 	Input: Zustand bei t-1 für Zellen index + index+1
 		   Zustand bei t
 	Output: Zustand bei t+1 für Zelle index und index +1
+	index: Das Element, was betrachtet werden soll
 	*/
 	public static int[] localstep_bulk (int[] state1, int[] state2, int index, int[] ruleset) {
 		int[] nextState = new int[2];
@@ -123,10 +126,10 @@ class CA {
 		String nb = "" + state2[ index-1 ] + ownState + state2[ index+2 ];
 		int ruleIndex = Integer.parseInt(nb, 4);
 
-		int firstBit = getBit(ruleset[ruleIndex], 0); //LSB
+		int firstBit  = getBit(ruleset[ruleIndex], 0); //LSB
 		int secondBit = getBit(ruleset[ruleIndex], 1);
 		//????stimmt die Reihenfolge denn??????
-		nextState[1] = (firstBit + state1[index]) % 2;
+		nextState[1] = (firstBit  + state1[ index   ]) % 2;
 		nextState[0] = (secondBit + state1[ index+1 ]) % 2;
 
 		return nextState; 
@@ -140,7 +143,7 @@ class CA {
 		return (ruleset[ruleIndex] + state1[index]) % 2;
 	}
 
-	public static int[] globalstep(int[] state1, int[] state2, int G_state, int fineRule, int bulkRule) {
+	public static int[] globalstep(int[] state1, int[] state2, int[] G_state, long fineRule, long bulkRule) {
 		int[] fineRuleset = createRuleset(fineRule, 2, 2); //radius=2, #states=2
 		int[] bulkRuleset = createRuleset(bulkRule, 1, 4);
 		int[] newState = new int[state1.length];
@@ -153,43 +156,63 @@ class CA {
 				newState[i+1] = tmp[1];
 				i++;
 			} else { //fine cell
-				newState[i] = localstep_fine(state1, state2, i, fineRuleset);
+				if (G_state[i-1] == 0) {
+					newState[i] = localstep_fine(state1, state2, i, fineRuleset);
+				}
 			}
 
 		}
 
 		return newState;
+	}
 
+
+	//!!!!!
+	public static int[] G_state_step (int[] G_state, int[] state) {
+		int[] newState = new int[G_state.length];
+		for (int i=0; i<G_state.length; i++) {
+			if(state[i]==1) {
+				newState[i] = 1;
+				i++;
+			} 
+		}
+		return newState;
 	}
 
 	public static void main(String[] args) {
-		CA ca = new CA("000000000000000000000000000000010000000000000000000000000000000000");
-		boolean run = false;
-		long bulkrule = 2319301L;
-		long finerule = 21312L;
+		//CA ca = new CA("00000000000001000000000000000100000000000100000010000000000000");
+		CA ca = new CA("1111111111111");
+		boolean run = true;
+		long bulkRule = 3232323; //[0-2**64?]
+		long fineRule = 2323; //[0-2**32]
 
 		//step_bulk(ca.state1, ca.state2, rule, ca.G_state);
 
 		if (run) {
-			//	printState(ca.state1);
-			//	printState(ca.state2);
+			printState(ca.state1);
+			printState(ca.state2);
 			while (round < 20) {
 
 				if (round % 2 == 0) {
-					ca.nextState = step_r2(ca.state1, ca.state2, rule);
+					ca.nextState = globalstep(ca.state1, ca.state2, ca.G_state, fineRule, bulkRule);
 					ca.state1 = ca.nextState;
-					ca.G_state = arrayAdd(ca.G_state, ca.state1);
+					ca.G_state = G_state_step(ca.G_state, ca.state1);
 				} else {
-					ca.nextState = step_r2(ca.state2, ca.state1, rule);
-					round++;
+					ca.nextState = globalstep(ca.state2, ca.state1, ca.G_state, fineRule, bulkRule);
 					ca.state2 = ca.nextState;
-					ca.G_state = arrayAdd(ca.G_state, ca.state2);
+					ca.G_state = G_state_step(ca.G_state, ca.state2);	
 				}
 				round++;
-			//	printState(ca.nextState);
-				printState(ca.G_state);
+				printState(ca.nextState);
+			//	printState(ca.G_state);
 			}
 		}
 	}
+
+	/*
+	TODO
+	schauen/aufschreiben welche Regeln additiv sind oder einfache Muster erzeugen (links laufen etc.)
+
+	*/
 
 }
