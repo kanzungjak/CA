@@ -6,7 +6,6 @@ class CA {
 	int[] state2;
 	int[] nextState;
 	int[] G_state;
-	int[] G_state2;
 	static int cnt;
 
 	static int round;
@@ -71,6 +70,7 @@ class CA {
 			} else if(state[i] == 0) {
 				System.out.print("_");
 			} else {
+				//ups, da sollten aber nur Bits raus kommen!
 				System.out.print(state[i]);
 			}
 		}
@@ -185,8 +185,6 @@ class CA {
 		boolean run = true;
 		long bulkRule = 3232323; //[0-2**64?]
 		long fineRule = 2323; //[0-2**32]
-
-		//step_bulk(ca.state1, ca.state2, rule, ca.G_state);
 
 		if (run) {
 			printState(ca.state1);
