@@ -1,30 +1,58 @@
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 class simpleCA {
 	
 	int[] state1;
 	int[] state2;
 	int[] nextState;
-	static int cnt;
-	static int round;
+	int[] plaintext;
+
+	/*Die letzten beiden Zustände nach einer Berechnung (Verschlüsselung, Entschlüsselung, Angriffsversuch ...)*/
+	int[] lastState;
+	int[] nextToLastState;
+
+	/*Die letzten beiden Zustände nach der Verschlüsselung*/
+	int[] lastStateDec;
+	int[] nextToLastStateDec;
 
 	/*
 	* Eine Konfiguration des CA arbeitet auf der Länge n = Länge des Plaintext
-	* Es werden aber links und recht jeweils 2 weitere Zellen hizugefügt,
+	* Es werden aber links und recht jeweils 2 weitere Zellen hinzugefügt (da wir hier mit Radius=2 arbeiten),
 	* um häßliche if-then Abfragen beim Zugriff auf überstehende Indizes zu vermeiden
 	*/
 	simpleCA(String startConfig) {
 		this.state1 = new int[startConfig.length()+4];
 		this.state2 = new int[startConfig.length()+4];
 		this.nextState = new int[startConfig.length()+4];
+		this.lastState = new int[startConfig.length()+4];
+		this.nextToLastState = new int[startConfig.length()+4];
+		this.plaintext = new int[startConfig.length()+4];
 
 		for (int i=0; i < state1.length; i++) {
 			this.state1[i] = 0;
 		}
 		for (int i=0; i < startConfig.length(); i++) {
 			this.state2[i+2] = Integer.parseInt( "" + startConfig.charAt(i) );
+			this.plaintext[i+2] = Integer.parseInt( "" + startConfig.charAt(i) );
 		}
-		round = 0;
+	}
+
+	simpleCA(int[] s1, int[] s2) {
+		this.state1 = new int[s1.length];
+		this.state2 = new int[s1.length];
+		this.nextState = new int[s1.length];
+		this.lastState = new int[s1.length];
+		this.nextToLastState = new int[s1.length];
+		this.plaintext = new int[s1.length];
+
+		for(int i=0; i<s1.length; i++) {
+			this.state1[i] = s1[i];
+			this.state2[i] = s2[i];
+			this.plaintext[i] = s2[i];
+		}
 	}
 
 	//wandelt eine Dezimalzahl in einen binären Regelsatz um, auf eine sehr murksige Art und Weise
@@ -80,6 +108,24 @@ class simpleCA {
 		return same;
 	}
 
+	public static boolean compareArraysAt(int[] a, int[] b,int index, int radius) {
+		boolean same = true;
+		if(a == null || b == null) {
+			same = false;
+		} else {
+			if(a.length != b.length) {
+				same = false;
+			} else {
+				for(int i=index-radius; i<index+radius; i++) {
+					if(a[i] != b[i]) {
+						same = false;
+					}
+				}
+			}
+		}
+		return same;
+	}
+
 	public static int localstep (int[] state1, int[] state2, int index, int[] ruleset) {
 		String nb = "" + state2[index-2] + state2[index-1] + state2[index] + state2[index+1] + state2[index+2];
 		int ruleIndex = Integer.parseInt(nb, 2);
@@ -97,179 +143,261 @@ class simpleCA {
 		return newState;
 	}
 
-	public static void main(String[] args) {
-		//simpleCA ca = new simpleCA("00000000000001000000000000000100000000000100000010000000000000");
-		String plaintext = "00000000000000010000000000000000";
-		simpleCA ca = new simpleCA(plaintext);
-		int[] pt = Arrays.copyOf(ca.state2, ca.state2.length);
-
-		System.out.println("Plaintext length: " + plaintext.length());
-		long fineRule = 429490029L - 1; 
-
-		//Die letzten beiden Zustände nach einer Berechnung (Verschlüsselung, Entschlüsselung, Angriffsversuch ...)
-		int[] lastState = new int[ca.state1.length];
-		int[] nextToLastState = new int[ca.state1.length];
-
-		//Die letzten beiden Zustände nach der Verschlüsselung
-		int[] lastStateDec = new int[ca.state1.length];
-		int[] nextToLastStateDec = new int[ca.state1.length];
-
-		int maxRound = 10;
-
-		/*---------------------------------------------------------*/
-		/*-----------------------Encrypt*--------------------------*/
-		/*---------------------------------------------------------*/
-		System.out.println("Encryption:");
-		printState(ca.state1);
-		printState(ca.state2);
-		while (round < maxRound) {
+	public void encrypt(int rounds, long rule, boolean output) {
+		int round = 0;
+		if (output) {
+			System.out.println("Encryption: ");
+			//die beiden Eingabewerte
+			printState(state1);
+			printState(state2);
+		}
+		while (round < rounds) {
 			if (round % 2 == 0) {
-				ca.nextState = globalstep(ca.state1, ca.state2, fineRule);
-				ca.state1 = Arrays.copyOf(ca.nextState, ca.nextState.length);
+				nextState = globalstep(state1, state2, rule);
+				state1 = Arrays.copyOf(nextState, nextState.length);
 
-				lastState = Arrays.copyOf(ca.state1, ca.state1.length);
-				nextToLastState = Arrays.copyOf(ca.state2, ca.state2.length);
+				lastState = Arrays.copyOf(state1, state1.length);
+				nextToLastState = Arrays.copyOf(state2, state2.length);
 			} else {
-				ca.nextState = globalstep(ca.state2, ca.state1, fineRule);
-				ca.state2 = Arrays.copyOf(ca.nextState, ca.nextState.length);
+				nextState = globalstep(state2, state1, rule);
+				state2 = Arrays.copyOf(nextState, nextState.length);
 
-				lastState = Arrays.copyOf(ca.state2, ca.state2.length);
-				nextToLastState = Arrays.copyOf(ca.state1, ca.state1.length);
+				lastState = Arrays.copyOf(state2, state2.length);
+				nextToLastState = Arrays.copyOf(state1, state1.length);
 			}
 			round++;
-			//jeden Zustand ausgeben
-			//System.out.print(round);
-			printState(ca.nextState);
+			if(output) {
+				//jeden Zustand ausgeben
+				//System.out.print(round);
+				printState(nextState);
+			}
 		}
 
-		//Die letzten beiden Zustände nach der Verschlüsselung sichern
+		//Die letzten beiden Zustände nach der Verschlüsselung sichern aka Chiffrate
 		lastStateDec = Arrays.copyOf(lastState, lastState.length);
 		nextToLastStateDec = Arrays.copyOf(nextToLastState, nextToLastState.length);
-		/*System.out.println("last lines");
-		printState(nextToLastStateDec);
-		printState(lastStateDec);*/
+		if(output) {
+			System.out.println("last lines");
+			printState(nextToLastStateDec);
+			printState(lastStateDec);
+		}
+	}
 
-		/*-----------------------------------------------------------------*/
-		/*-----------------------Decrypt without Key-----------------------*/
-		/*-----------------------------------------------------------------*/
-		System.out.println("hack0r:");
-		round = 0;
+	public void decrypt(int rounds, long rule) {
+		System.out.println("Decryption:");
+		int round = 0;
+		//Chiffrate einfügen
+		state1 = Arrays.copyOf(lastStateDec, lastStateDec.length);
+		state2 = Arrays.copyOf(nextToLastStateDec, nextToLastStateDec.length);
+		printState(state1);
+		printState(state2);
+		while (round < rounds) {
+			if (round % 2 == 0) {
+				nextState = globalstep(state1, state2, rule);
+				state1 = Arrays.copyOf(nextState, nextState.length);
 
-		//Da wir bei dem Angriff die erste Eingabe Zeile (nur Nullen),
-		//müssen wir auch nur eine Runde weniger verschlüsseln
-		maxRound--;
+				lastState = Arrays.copyOf(state1, state1.length);
+				nextToLastState = Arrays.copyOf(state2, state2.length);
+			} else {
+				nextState = globalstep(state2, state1, rule);
+				state2 = Arrays.copyOf(nextState, nextState.length);
 
-		//unser selbst gewählte Eingabe (pt = plaintext)
-		/*System.out.println("p ");
-		printState(pt);*/
-		ca.state1 = Arrays.copyOf(pt, pt.length);
+				lastState = Arrays.copyOf(state2, state2.length);
+				nextToLastState = Arrays.copyOf(state1, state1.length);
+			}
+			round++;
+			printState(nextState);
+		}
+	}
+
+	public void attack(int rounds, long rule) {
+		Set<Integer> candidates = new HashSet<Integer>();
 		
-		/*System.out.println("state1");
-		printState(ca.state1);*/
+		System.out.println("hack0r:");
+		int round = 0;
 
+		state1 = Arrays.copyOf(plaintext, plaintext.length);
+	
 		//Zellen im Einflussbereich bruteforcen
 		//für 5-Bits haben wir 32 verschiedene Möglichkeiten
 		for(int x=0; x<32; x++) {
 			//state1 auf plaintext zurücksetzen
-			ca.state1 = Arrays.copyOf(pt, pt.length);
+			state1 = Arrays.copyOf(plaintext, plaintext.length);
 
 			/*Die Zellen im Radius eines 1er Wertes bruteforcen*/
 			//Annahme: Zellen nicht im Einflussbereich seien 0
-			for (int i=0; i<ca.state2.length; i++) {
-				ca.state2[i] = 0;
+			for (int i=0; i<state2.length; i++) {
+				state2[i] = 0;
 			}
 
-			for (int i=2; i<ca.state2.length-2; i++) {
-				if(ca.state1[i] == 1) {
-					ca.state2[i-2] = getBit(x, 4); //MSB
-					ca.state2[i-1] = getBit(x, 3);
-					ca.state2[ i ] = getBit(x, 2);
-					ca.state2[i+1] = getBit(x, 1);
-					ca.state2[i+2] = getBit(x, 0); //LSB
+			for (int i=2; i<state2.length-2; i++) {
+				if(state1[i] == 1) {
+					state2[i-2] = getBit(x, 4); //MSB
+					state2[i-1] = getBit(x, 3);
+					state2[ i ] = getBit(x, 2);
+					state2[i+1] = getBit(x, 1);
+					state2[i+2] = getBit(x, 0); //LSB
 				}
 			}
 			//System.out.print(x + "");
-			//printState(ca.state2);
+			//printState(state2);
 			/*
 			System.out.println("C1+C2 @ " + x);
-			printState(ca.state1);
-			printState(ca.state2); 
+			printState(state1);
+			printState(state2); 
 			*/
-
 			//Jeden Kandidaten 1-32 verschlüsseln wir
 			round = 0;
-			while (round < maxRound) {
+
+			while (round < rounds) {
 				if (round % 2 == 0) {
-					ca.nextState = globalstep(ca.state1, ca.state2, fineRule);
-					ca.state1 = Arrays.copyOf(ca.nextState, ca.nextState.length);
+					nextState = globalstep(state1, state2, rule);
+					state1 = Arrays.copyOf(nextState, nextState.length);
 
-					lastState = Arrays.copyOf(ca.state1, ca.state1.length);
-					nextToLastState = Arrays.copyOf(ca.state2, ca.state2.length);
+					lastState = Arrays.copyOf(state1, state1.length);
+					nextToLastState = Arrays.copyOf(state2, state2.length);
 				} else {
-					ca.nextState = globalstep(ca.state2, ca.state1, fineRule);
-					ca.state2 = Arrays.copyOf(ca.nextState, ca.nextState.length);
+					nextState = globalstep(state2, state1, rule);
+					state2 = Arrays.copyOf(nextState, nextState.length);
 
-					lastState = Arrays.copyOf(ca.state2, ca.state2.length);
-					nextToLastState = Arrays.copyOf(ca.state1, ca.state1.length);
+					lastState = Arrays.copyOf(state2, state2.length);
+					nextToLastState = Arrays.copyOf(state1, state1.length);
 				}
 				round++;
 				//Jeden Zustand beim Verschlüsseln ausgeben
 				//System.out.print(round) ;
-				/*printState(ca.nextState);*/
+				//printState(nextState);
 
 			}
 
-			/*/Nur die Endzustände ausgeben
-			System.out.println(x + ": ");
-			printState(ca.state2);
-			printState(ca.state1);*/
-
+			//Nur die Endzustände ausgeben
+			/*System.out.println(x + ": ");
+			printState(state1);
+			printState(state2);*/
+			
 
 			/*System.out.println("last lines after Enc()");
 			printState(nextToLastStateDec);
 			printState(lastStateDec);*/
-			if (compareArrays(nextToLastStateDec, ca.state1) ||
-			    compareArrays(lastStateDec,       ca.state2) ||
-				compareArrays(lastStateDec,       ca.state1) ||
-				compareArrays(nextToLastStateDec, ca.state2) ) 
+			/*if (compareArrays(nextToLastStateDec, state1) ||
+			    compareArrays(lastStateDec,       state2) ||
+				compareArrays(lastStateDec,       state1) ||
+				compareArrays(nextToLastStateDec, state2) ) 
 			{
-				System.out.println("Kandidat " + x);
+				System.out.println("Success! Kandidat: " + x);
+			}*/
+
+			for (int i=2; i<state2.length-2; i++) {
+					if (compareArrays(lastStateDec, state1) )					
+					{
+						/*System.out.println("lastState");
+						printState(lastStateDec);
+						System.out.println("S1");
+						printState(state1);
+
+						*/
+						//System.out.println("Success! Kandidat: " + x);
+						candidates.add(i);
+						/*System.out.println("s1");
+						printState(state1);
+						System.out.println("s2");
+						printState(state2);*/
+					}
 			}
 			
 		}	
+		System.out.print("Candidates: ");
+		for (Integer i : candidates) {
+				System.out.print(i + " ");
+		}
+		System.out.println("");
+	}
+
+	public static void attack2(int rounds, long rule, int[] plaintext, int[] lastState) {
+		Set<Integer> candidates = new HashSet<Integer>();
+
+		//cas= Cellular AutomataS /*TODO bessere Bezeichnung finden*/
+		simpleCA[] cas0 = new simpleCA[32];
+		simpleCA[] cas1 = new simpleCA[32];
+		//custom input, beeinflußbarer Bereich wird brutegeforced, der Rest ist konstant (0 oder 1)
+		int[] input0 = new int[plaintext.length];
+		int[] input1 = new int[plaintext.length];
+
+		for(int c=0; c<cas0.length; c++) {
+
+			/*Init der beiden Eingabewerte*/
+			//S1: 	0------010-------0
+			//S2:   0-----XXXXX------0
+			for(int j=0; j<input0.length /*+4?*/; j++) {
+				//Annahme: nicht beeinflußte Bits seien Null bzw. Eins
+				input0[j] = 0;
+				input1[j] = 1;
+			}
+
+			//"1er" Bereich bruteforcen
+			for(int x=2; x<input0.length-2; x++) {
+				if(plaintext[x] == 1) {
+					input0[x-2] = getBit(c, 4); //MSB
+					input0[x-1] = getBit(c, 3);
+					input0[ x ] = getBit(c, 2);
+					input0[x+1] = getBit(c, 1);
+					input0[x+2] = getBit(c, 0); //LSB
+
+					input1[x-2] = getBit(c, 4); //MSB
+					input1[x-1] = getBit(c, 3);
+					input1[ x ] = getBit(c, 2);
+					input1[x+1] = getBit(c, 1);
+					input1[x+2] = getBit(c, 0); //LSB
+				}
+			}
+			cas0[c] = new simpleCA(plaintext, input0);
+			cas1[c] = new simpleCA(plaintext, input1);
+
+			/*Verschlüsselung der Kandidaten*/
+			cas0[c].encrypt(rounds, rule, false);
+			cas1[c].encrypt(rounds, rule, false);
+
+			/*Überprüfung ob letzte Zustand der Verschlüsselung mit dem vorletzten Zustand der Kandidaten übereinstimmt*/
+			if ( compareArrays(cas0[c].nextToLastState, lastState) == true || 
+			 	 compareArrays(cas1[c].nextToLastState, lastState) == true) {
+				candidates.add(c);
+				System.out.println("Kandidat " + c);
+			}
+		}
+
+	}
+
+	public static void main(String[] args) {
+		//simpleCA ca = new simpleCA("00000000000001000000000000000100000000000100000010000000000000");
+		String plaintext = "000000000100000000000";
+		//plaintext = "01010101010101010101010101010101";
 		
+		simpleCA ca = new simpleCA(plaintext);
+
+		System.out.println("Plaintext length: " + plaintext.length());
+		long rule = 429490029L - 1; //[0, 2^32-1]
+		//rule = 2147483648L ; // = 2^31
+		//rule = 0;
+		int maxRound = 16;
+
+		/*---------------------------------------------------------*/
+		/*-----------------------Encrypt*--------------------------*/
+		/*---------------------------------------------------------*/
+		ca.encrypt(maxRound, rule, true);
+	
+		/*---------------------------------------------------------*/
+		/*-----------------------Attack----------------------------*/
+		/*---------------------------------------------------------*/
+		//Da wir bei dem Angriff die erste Eingabezeile (nur Nullen) weglassen,
+		//müssen wir auch nur eine Runde weniger verschlüsseln
+	//	ca.attack(maxRound, rule);
+
+		attack2(maxRound, rule, ca.plaintext, ca.lastState);
 
 		/*---------------------------------------------------------*/
 		/*-----------------------Decrypt*--------------------------*/
 		/*---------------------------------------------------------*/		
-		/*
-		System.out.println("Decryption:");
-		round = 0;
-		maxRound = 10;
-
-		ca.state1 = Arrays.copyOf(lastStateDec, lastStateDec.length);
-		ca.state2 = Arrays.copyOf(nextTolastStateDec, nextTolastStateDec.length);
-		printState(ca.state1);
-		printState(ca.state2);
-		while (round < maxRound) {
-
-			if (round % 2 == 0) {
-				ca.nextState = globalstep(ca.state1, ca.state2, fineRule);
-				ca.state1 = Arrays.copyOf(ca.nextState, ca.nextState.length);
-
-				lastState = Arrays.copyOf(ca.state1, ca.state1.length);
-				nextToLastState = Arrays.copyOf(ca.state2, ca.state2.length);
-			} else {
-				ca.nextState = globalstep(ca.state2, ca.state1, fineRule);
-				ca.state2 = Arrays.copyOf(ca.nextState, ca.nextState.length);
-
-				lastState = Arrays.copyOf(ca.state2, ca.state2.length);
-				nextToLastState = Arrays.copyOf(ca.state1, ca.state1.length);
-			}
-			round++;
-			printState(ca.nextState);
-		}
-		*/
+		ca.decrypt(maxRound, rule);
 	
 	}
 }
