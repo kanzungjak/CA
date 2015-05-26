@@ -1,16 +1,33 @@
 import java.util.Arrays;
+import java.math.BigInteger;
 
 class CA {
 	
 	int[] state1;
 	int[] state2;
 	int[] nextState;
+	int[] plaintext;
 	int[] G_state;
-	static int cnt;
 
-	static int round;
+	/*Die letzten beiden Zustände nach einer Berechnung (Verschlüsselung, Entschlüsselung, Angriffsversuch ...)*/
+	int[] lastState;
+	int[] nextToLastState;
 
-	CA(String startConfig) {
+	/*Die letzten beiden Zustände nach der Verschlüsselung*/
+	int[] lastStateDec;
+	int[] nextToLastStateDec;
+
+	int[] G_state_Dec;
+	
+	int rounds;
+
+	String bulkRule;
+	String fineRule;
+
+	int[] fineRuleset;
+	int[] bulkRuleset;
+
+	CA(String startConfig, String fineRule, String bulkRule) {
 		this.state1 = new int[startConfig.length()+4];
 		this.state2 = new int[startConfig.length()+4];
 		this.G_state = new int[startConfig.length()+4]; //Granularitätszustand
@@ -24,10 +41,11 @@ class CA {
 			this.state2[i+2] = Integer.parseInt( "" + startConfig.charAt(i) );
 		}
 
-		round = 0;
+		this.fineRuleset = createRuleset(fineRule, 2, 2);
+		this.bulkRuleset = createRuleset(bulkRule, 1, 4);
+
+		this.rounds = 0;
 	}
-
-
 
 	//wandelt eine Dezimalzahl in einen binären Regelsatz um, auf eine sehr murksige Art und Weise
 	static int[] createRuleset(long decimal, int radius, int numStates) {
@@ -45,22 +63,26 @@ class CA {
 		return ruleset;
 	}
 
-	public static int getBit(int n, int k) {
-    	return (n >> k) & 1;
+	//für große, große Zahlen
+	static int[] createRuleset(String decimal, int radius, int numStates) {
+		//Die Werte sollten mit Null initiert sein
+		//Anzahl Regeln = |numStates|**(2r+1)
+		int numRules = (int)Math.pow(numStates, 2*radius+1) ;
+		int[] ruleset = new int[numRules];
+		BigInteger num = new BigInteger(decimal, 10);
+
+		String s = num.toString(numStates);
+		
+		for(int i=0; i < s.length(); i++) {
+			ruleset[ numRules - s.length() + i ] = Integer.parseInt( "" + s.charAt(i) );
+		}
+		//System.out.println( Arrays.toString(ruleset) + " Length: " + ruleset.length);
+
+		return ruleset;
 	}
 
-	//bitwise modular addition (XOR) von 2 arrays 
-	public static int[] arrayAdd(int[] a1, int[] a2) {
-		int[] newArray = new int[a1.length];
-		if (a1.length != a2.length) {
-			System.out.println("Arrays nicht gleich lang!");
-			return a1;
-		}
-
-		for(int i=0; i<a1.length; i++) {
-			newArray[i] = (a1[i] + a2[i]) % 2;
-		}
-		return newArray;
+	public static int getBit(int n, int k) {
+    	return (n >> k) & 1;
 	}
 
 	public static void printState(int[] state) {
@@ -77,37 +99,32 @@ class CA {
 		System.out.println("");
 	}
 
-	/*deprecated
-	//r=1, Zustände={0,1}
-	public static int[] step(int[] state1, int[] state2) {
-		int[] ruleset = new int[8];
-		int[] nextState = new int[state1.length];
-
-		for(int i=0; i < state1.length; i++) {
-			String nb;
-			int index;
-			//Wie sieht die lokale Nachbarschaft aus?
-			//Null Boundary Condition
-			if (i == 0) { //kein linker Nachbar
-				nb = "" + 0 + state2[i] + state2[i+1];
-			} else if (i == state2.length - 1) { //kein rechter Nachbar
-				nb = "" + state2[i-1] + state2[i] + 0; 
-			} else { //normaler Fall
-				nb = "" + state2[i-1] + state2[i] + state2[i+1];
-			}
-			index = Integer.parseInt(nb,2);
-
-			if (state1[i] == 1) {
-				ruleset = createRuleset(100, 1);
-				nextState[i] = ruleset[index];
-			} else { 
-				ruleset = createRuleset(155, 1);
-				nextState[i] = ruleset[index];
+	public static void printState(int[] state, int[] state2) {
+		for(int i=0; i < state.length; i++) {
+			if(state[i] == 1) {
+				System.out.print("#");
+			} else if(state[i] == 0) {
+				System.out.print("_");
+			} else {
+				//ups, da sollten aber nur Bits raus kommen!
+				System.out.print(state[i]);
 			}
 		}
-		return nextState;
+
+		System.out.print(" ");
+
+		for(int i=0; i < state2.length; i++) {
+			if(state2[i] == 1) {
+				System.out.print("#");
+			} else if(state2[i] == 0) {
+				System.out.print("_");
+			} else {
+				//ups, da sollten aber nur Bits raus kommen!
+				System.out.print(state2[i]);
+			}
+		}
+		System.out.println("");
 	}
-	*/
 
 	//r=1, Zustände = {0,1,2,3}
 	/*
@@ -118,6 +135,7 @@ class CA {
 	*/
 	public static int[] localstep_bulk (int[] state1, int[] state2, int index, int[] ruleset) {
 		int[] nextState = new int[2];
+
 		//int[] ruleset = createRuleset(rule, 1, 4); // |Zustände|**|Anzahl Elemente| => 4**3 = 64 bits
 		//der Zustand einer bulky Zelle besteht aus 2-Bits
 		//deshalb müssen wir erst 2-bits als Dezimalzahl interpretieren (eigentlich 4-näre Zahl)
@@ -136,16 +154,13 @@ class CA {
 	}
 
 	public static int localstep_fine (int[] state1, int[] state2, int index, int[] ruleset) {
-		//int ruleset = createRuleset(rule, 2, 2);
 		String nb = "" + state2[index-2] + state2[index-1] + state2[index] + state2[index+1] + state2[index+2];
 		int ruleIndex = Integer.parseInt(nb, 2);
 
 		return (ruleset[ruleIndex] + state1[index]) % 2;
 	}
 
-	public static int[] globalstep(int[] state1, int[] state2, int[] G_state, long fineRule, long bulkRule) {
-		int[] fineRuleset = createRuleset(fineRule, 2, 2); //radius=2, #states=2
-		int[] bulkRuleset = createRuleset(bulkRule, 1, 4);
+	public static int[] globalstep(int[] state1, int[] state2, int[] G_state, int[] fineRuleset, int[] bulkRuleset) {
 		int[] newState = new int[state1.length];
 
 		for(int i=2; i<state1.length-2; i++) {
@@ -156,55 +171,120 @@ class CA {
 				newState[i+1] = tmp[1];
 				i++;
 			} else { //fine cell
-				if (G_state[i-1] == 0) {
+				//if (G_state[i-1] == 0) {
 					newState[i] = localstep_fine(state1, state2, i, fineRuleset);
-				}
+				//}
 			}
-
+		
 		}
 
 		return newState;
 	}
 
-
-	//!!!!!
 	public static int[] G_state_step (int[] G_state, int[] state) {
 		int[] newState = new int[G_state.length];
+
 		for (int i=0; i<G_state.length; i++) {
 			if(state[i]==1) {
 				newState[i] = 1;
+				//newState[i+1] = 99;
 				i++;
 			} 
 		}
 		return newState;
 	}
 
-	public static void main(String[] args) {
-		//CA ca = new CA("00000000000001000000000000000100000000000100000010000000000000");
-		CA ca = new CA("1111111111111");
-		boolean run = true;
-		long bulkRule = 3232323; //[0-2**64?]
-		long fineRule = 2323; //[0-2**32]
+	public void encrypt(boolean output) {
+		int round = 0;
+		if (output) {
+			System.out.println("Encryption: ");
+			//die beiden Eingabewerte
+			//printState(state1);
+			//printState(state2);
 
-		if (run) {
-			printState(ca.state1);
-			printState(ca.state2);
-			while (round < 20) {
+			printState(state1, G_state);
+			printState(state2, G_state);
+		}
+		while (round < rounds) {
+			if (round % 2 == 0) {
+				nextState = globalstep(state1, state2, G_state, fineRuleset, bulkRuleset);
+				state1 = Arrays.copyOf(nextState, nextState.length);
 
-				if (round % 2 == 0) {
-					ca.nextState = globalstep(ca.state1, ca.state2, ca.G_state, fineRule, bulkRule);
-					ca.state1 = ca.nextState;
-					ca.G_state = G_state_step(ca.G_state, ca.state1);
-				} else {
-					ca.nextState = globalstep(ca.state2, ca.state1, ca.G_state, fineRule, bulkRule);
-					ca.state2 = ca.nextState;
-					ca.G_state = G_state_step(ca.G_state, ca.state2);	
-				}
-				round++;
-				printState(ca.nextState);
-			//	printState(ca.G_state);
+				lastState = Arrays.copyOf(state1, state1.length);
+				nextToLastState = Arrays.copyOf(state2, state2.length);
+			} else {
+				nextState = globalstep(state2, state1, G_state, fineRuleset, bulkRuleset);
+				state2 = Arrays.copyOf(nextState, nextState.length);
+
+				lastState = Arrays.copyOf(state2, state2.length);
+				nextToLastState = Arrays.copyOf(state1, state1.length);
+			}
+			G_state = G_state_step(G_state, nextState);
+			round++;
+			if(output) {
+				//jeden Zustand ausgeben
+				//System.out.print(round);
+				//printState(nextState);
+				printState(nextState, G_state);
 			}
 		}
+
+		//Die letzten beiden Zustände nach der Verschlüsselung sichern aka Chiffrate
+		lastStateDec = Arrays.copyOf(lastState, lastState.length);
+		nextToLastStateDec = Arrays.copyOf(nextToLastState, nextToLastState.length);
+		G_state_Dec = Arrays.copyOf(G_state, G_state.length);
+		if(output) {
+			System.out.println("last lines");
+			printState(nextToLastStateDec);
+			printState(lastStateDec);
+		}
+	}
+
+	public void decrypt() {
+		System.out.println("Decryption:");
+		int round = 0;
+		//Chiffrate einfügen
+		state1 = Arrays.copyOf(lastStateDec, lastStateDec.length);
+		state2 = Arrays.copyOf(nextToLastStateDec, nextToLastStateDec.length);
+		G_state = Arrays.copyOf(G_state_Dec, G_state_Dec.length);
+
+		Arrays.fill(G_state, 0);
+
+		printState(state1, G_state);
+		printState(state2, G_state);
+		while (round < rounds) {
+			if (round % 2 == 0) {
+				nextState = globalstep(state1, state2, G_state, fineRuleset, bulkRuleset);
+				state1 = Arrays.copyOf(nextState, nextState.length);
+
+				lastState = Arrays.copyOf(state1, state1.length);
+				nextToLastState = Arrays.copyOf(state2, state2.length);
+			} else {
+				nextState = globalstep(state2, state1, G_state, fineRuleset, bulkRuleset);
+				state2 = Arrays.copyOf(nextState, nextState.length);
+
+				lastState = Arrays.copyOf(state2, state2.length);
+				nextToLastState = Arrays.copyOf(state1, state1.length);
+			}
+			G_state = G_state_step(G_state, nextState);
+			round++;
+			printState(nextState, G_state);
+		}
+	}
+
+	public static void main(String[] args) {
+		String br = "34028236692093843463374605431768211455"; //[0-2**64?]
+		//br = "0" ;
+		String fr = "429490029"; //[0-2**32]
+		fr = "0";
+		br = "0";
+		CA ca = new CA("0000011100000010000000000000", fr, br);
+
+		ca.rounds = 8;
+		
+		ca.encrypt(true);
+
+		ca.decrypt();
 	}
 
 	/*
