@@ -10,14 +10,13 @@ class CA {
 
 	/*Granularitätszustand*/
 	int[] gState;
-
 	int[][] gStates;
 
 	/*Die letzten beiden Zustände nach einer Berechnung (Verschlüsselung, Entschlüsselung, Angriffsversuch ...)*/
 	int[] lastState;
 	int[] nextToLastState;
 
-	/*Die letzten beiden Zustände nach der Verschlüsselung*/
+	/*Die letzten beiden Zustände nach der Verschlüsselung/ Chiffrate*/
 	int[] lastStateDec;
 	int[] nextToLastStateDec;
 
@@ -174,10 +173,10 @@ class CA {
 		int secondBit = getBit(ruleset[ruleIndex], 1);
 
 		//????stimmt die Reihenfolge denn??????
-		nextState[1] = (firstBit  + state1[ index   ]) % 2;
-		//nextState[0] = (secondBit + state1[ index+1 ]) % 2;
-		nextState[0] = secondBit;
-
+		//Ich glaube die Reihenfolge stimmt jetzt
+		nextState[0] = (firstBit  + state1[ index   ]) % 2;
+		nextState[1] = (secondBit + state1[ index+1 ]) % 2;
+		
 		return nextState; 
 	}
 
@@ -192,15 +191,20 @@ class CA {
 		int[] newState = new int[state1.length];
 
 		for(int i=2; i<state1.length-2; i++) {
-
+			//System.out.println(state1.length + " " + state2.length + " " + gState.length + " " + newState.length);
 			/*Sondefall: wenn die letzte Zelle fette Granularität haben sollte, dann interpretiere sie nur als dünne Zelle*/
+			//System.out.print(i+ " ");
 			if (i == state1.length-3 ){
 				newState[i] = localstep_fine(state1, state2, i, fineRuleset);
+				//BUG at round = 3 ?
+			//	System.out.println(newState[i]);
+			//	System.out.println(i);
+
 			} else if ( (gState[i] == 1 && gState[i+1] == 1) || (gState[i] == 0 && gState[i+1] == 0) ) { //bulky cell
 				int[] tmp = localstep_bulk(state1, state2, i , bulkRuleset);
 				newState[ i ] = tmp[0];
 				newState[i+1] = tmp[1];
-				i++;
+				i++; /*!!??!!*/
 			} else { //fine cell
 				newState[i] = localstep_fine(state1, state2, i, fineRuleset);
 			}
@@ -239,20 +243,18 @@ class CA {
 	}
 
 	public void encrypt(boolean output) {
-		gStates = new int[gState.length][rounds];
-
 		int round = 0;
 
 		if (output) {
 			System.out.println("Encryption: ");
-			printState(state1);
-			printState(state2, gState);
+			printState(state1);								//C_-1
+			printState(state2, gState);						//C_0
 		}
-		nextState = Arrays.copyOf(state2, state2.length);
-		
+
+		nextState = Arrays.copyOf(state2, state2.length);   //C_0
+
 		while (round < rounds) {
-			/*Granularity Change*/
-			gState = gState_step2(gState, nextState);
+
 			/*State Change*/
 			if (round % 2 == 0) {
 				nextState = globalstep(state1, state2, gState, fineRuleset, bulkRuleset);
@@ -260,15 +262,20 @@ class CA {
 
 				lastState 		= Arrays.copyOf(state1, state1.length);
 				nextToLastState = Arrays.copyOf(state2, state2.length);
+
+//				System.out.println(round);
 			} else {
 				nextState = globalstep(state2, state1, gState, fineRuleset, bulkRuleset);
 				state2 = Arrays.copyOf(nextState, nextState.length);
 
 				lastState 		= Arrays.copyOf(state2, state2.length);
 				nextToLastState = Arrays.copyOf(state1, state1.length);
+
+//				System.out.println(round);
 			}
 
-			//gStates[round] = Arrays.copyOf(gState, gState.length);
+			/*Granularity Change*/
+			gState = gState_step2(gState, nextState);
 
 			round++;
 
@@ -289,10 +296,6 @@ class CA {
 			printState(nextToLastStateDec);
 			printState(lastStateDec);
 
-			/*System.out.println("gStates");
-			for (int i=0; i<rounds; i++) {
-				printState(gStates[i]);
-			}*/
 		}
 	}
 
@@ -300,50 +303,34 @@ class CA {
 		System.out.println("Decryption:");
 
 		int round = 0;
+
 		//Chiffrate einfügen
-		state1 = Arrays.copyOf(lastStateDec, lastStateDec.length);
-		state2 = Arrays.copyOf(nextToLastStateDec, nextToLastStateDec.length);
-		gState = Arrays.copyOf(gState_Dec, gState_Dec.length);
+		state1 = Arrays.copyOf(lastStateDec, lastStateDec.length); 				//C_n
+		state2 = Arrays.copyOf(nextToLastStateDec, nextToLastStateDec.length);	//C_n-1
+		gState = Arrays.copyOf(gState_Dec, gState_Dec.length);					//G_n
+		int[] gState2 = gState_step2(gState, lastStateDec);						//G_n-1
+		int[] preState;
 
-		int[] gState2 = gState_step2(gState, lastStateDec);
-		printState(state1, gState);
-		printState(state2, gState2);
+		printState(state1, gState);		//C_n,   G_n
+		printState(state2, gState2);	//C_n-1, G_n-1
 
-		//printState(nextState);
-		Arrays.fill(nextState, 0); 
+		nextState = Arrays.copyOf(state2, state2.length);
 
+		//gState == G_n
+		gState = gState_step2(gState_Dec, lastStateDec);
+		//gState == G_n-1
 
-		while (round < rounds) {
+		while (round < rounds - 1) {
 			/*State Change*/
-			if (round == 0 ) {
+			preState = Arrays.copyOf(nextState, nextState.length);
 
-				/*BUG*/
-				//gState == G_n
-				gState = gState_step2(gState_Dec, lastStateDec);
-				//gState == G_n-1
-				gState = gState_step2(gState, nextToLastStateDec);
-				//gState == G_n-2
-
-				//printState(gState);
-
-				//nextState == C_n-2 = F(C_n, C_n-1, G_n-2)
-				nextState = globalstep(state1, state2, gState, fineRuleset, bulkRuleset);
-				state1 	= Arrays.copyOf(nextState, nextState.length);
-
-				lastState 		= Arrays.copyOf(state1, state1.length);
-				nextToLastState = Arrays.copyOf(state2, state2.length);
-
-				//gState = Arrays.copyOf(gState_Dec, gState_Dec.length);
-			} else if (round % 2 == 0) {
-				gState = gState_step2(gState, nextState);
-
+			if (round % 2 == 0) {
 				nextState = globalstep(state1, state2, gState, fineRuleset, bulkRuleset);
 				state1 	  = Arrays.copyOf(nextState, nextState.length);
 
 				lastState 		= Arrays.copyOf(state1, state1.length);
 				nextToLastState = Arrays.copyOf(state2, state2.length);
 			} else {
-				gState = gState_step2(gState, nextState);
 				nextState = globalstep(state2, state1, gState, fineRuleset, bulkRuleset);
 				state2 	  = Arrays.copyOf(nextState, nextState.length);
 
@@ -351,34 +338,33 @@ class CA {
 				nextToLastState = Arrays.copyOf(state1, state1.length);
 			}
 
-			if(round == 0) {
-//				printState(nextState, gState_step2(gState, state2) );
-				//System.out.print(round);
-				printState(nextState, gState);
-			} else {
-				//System.out.print(round);
-				printState(nextState, gState);
-			}
+			gState = gState_step2(gState, preState);
+			round++;
+
+			printState(nextState, gState);
 
 //			printState(gState);
-			//gState = Arrays.copyOf(gStates[rounds - round -1], gState.length);
-			round++;
+//			gState = Arrays.copyOf(gStates[rounds - round -1], gState.length);
 //			printState(nextState, gState);
 		}
+
+		System.out.println("Plaintext:");
+		printState(nextState);
 	}
 
 	public static void main(String[] args) {
-		String br = "34028236692093843463374605431768211455"; //[0-2**64]
-		String fr = "429490029"; //[0-2**32]
+		String br = "340282366920938463463374607431768211455"; //[0-2**64]
+		String fr = "4294967295"; //[0-2**32] voll Regel
 
-		//fr = "";
-		br = "18446744073709551615";
-		br = "340282366920938463463374607431768211455";
-		fr = "0";
+		//br = "18446744073709551615";
+		br = "34028236592093843463374605431768211455"; //"volle" Regel
+		//br = "0";
+		//fr = "0";
+
 		CA ca = new CA("000000000001000000000000", fr, br);
 		//CA ca = new CA("1010101011100001010101", fr, br);
 
-		ca.rounds = 3;
+		ca.rounds = 7;
 		
 		ca.encrypt(true);
 		ca.decrypt();
