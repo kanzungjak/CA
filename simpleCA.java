@@ -26,13 +26,14 @@ class simpleCA {
 	* Es werden aber links und recht jeweils 2 weitere Zellen hinzugefügt (da wir hier mit Radius=2 arbeiten),
 	* um häßliche if-then Abfragen beim Zugriff auf überstehende Indizes zu vermeiden
 	*/
-	simpleCA(String startConfig) {
+	simpleCA(String startConfig, long rule) {
 		this.state1 = new int[startConfig.length()+4];
 		this.state2 = new int[startConfig.length()+4];
 		this.nextState = new int[startConfig.length()+4];
 		this.lastState = new int[startConfig.length()+4];
 		this.nextToLastState = new int[startConfig.length()+4];
 		this.plaintext = new int[startConfig.length()+4];
+		this.rule = rule;
 
 		for (int i=0; i < state1.length; i++) {
 			this.state1[i] = 0;
@@ -43,13 +44,15 @@ class simpleCA {
 		}
 	}
 
-	simpleCA(int[] s1, int[] s2) {
+	simpleCA(int[] s1, int[] s2, long rule, int rounds) {
 		this.state1 = new int[s1.length];
 		this.state2 = new int[s1.length];
 		this.nextState = new int[s1.length];
 		this.lastState = new int[s1.length];
 		this.nextToLastState = new int[s1.length];
 		this.plaintext = new int[s1.length];
+		this.rule = rule;
+		this.maxRound = rounds;
 
 		for(int i=0; i<s1.length; i++) {
 			this.state1[i] = s1[i];
@@ -214,7 +217,8 @@ class simpleCA {
 	}
 
 
-	public static void attack(int[] plaintext, int[] lastState) {
+	public static void attack(int[] plaintext, int[] lastState, long rule, int rounds) {
+		System.out.println("Attack:");
 		Set<Integer> candidates = new HashSet<Integer>();
 
 		//cas= Cellular AutomataS /*TODO bessere Bezeichnung finden*/
@@ -228,7 +232,7 @@ class simpleCA {
 
 			/*Init der beiden Eingabewerte*/
 			//S1: 	0------010-------0
-			//S2:   0-----XXXXX------0
+			//S2:   k-----XXXXX------k mit k={0|1}
 			for(int j=0; j<input0.length /*+4?*/; j++) {
 				//Annahme: nicht beeinflußte Bits seien Null bzw. Eins
 				input0[j] = 0;
@@ -251,13 +255,18 @@ class simpleCA {
 					input1[x+2] = getBit(c, 0); //LSB
 				}
 			}
-			cas0[c] = new simpleCA(plaintext, input0);
-			cas1[c] = new simpleCA(plaintext, input1);
-
+			cas0[c] = new simpleCA(plaintext, input0, rule, rounds);
+			cas1[c] = new simpleCA(plaintext, input1, rule, rounds);
+			
 			/*Verschlüsselung der Kandidaten*/
 			cas0[c].encrypt(false);
 			cas1[c].encrypt(false);
 
+			//printState(cas0[c].nextToLastState);
+			//printState(cas0[c].state1);
+
+
+	
 			/*Überprüfung ob letzte Zustand der Verschlüsselung mit dem vorletzten Zustand der Kandidaten übereinstimmt*/
 			if ( compareArrays(cas0[c].nextToLastState, lastState) == true || 
 			 	 compareArrays(cas1[c].nextToLastState, lastState) == true) {
@@ -272,20 +281,21 @@ class simpleCA {
 		//simpleCA ca = new simpleCA("00000000000001000000000000000100000000000100000010000000000000");
 		String plaintext = "000000000100000000000";
 		//plaintext = "01010101010101010101010101010101";
-		
-		simpleCA ca = new simpleCA(plaintext);
-
-		System.out.println("Plaintext length: " + plaintext.length());
-		ca.rule = 429490029L - 1; //[0, 2^32-1]
+		long rule = 429490029L - 1; //[0, 2^32-1]
 		//rule = 2147483648L ; // = 2^31
 		//rule = 0;
-		ca.maxRound = 15;
+
+		simpleCA ca = new simpleCA(plaintext, rule);
+
+		System.out.println("Plaintext length: " + plaintext.length());
+
+		ca.maxRound = 11;
 
 		ca.encrypt(true);
 	
-		attack(ca.plaintext, ca.lastState);
+		attack(ca.plaintext, ca.lastState, ca.rule, ca.maxRound);
 	
-		ca.decrypt();
+		//ca.decrypt();
 	
 	}
 }

@@ -25,6 +25,7 @@ class CA {
 	int[] gState_Dec;
 	
 	int rounds;
+	int configLength;
 
 	String bulkRule;
 	String fineRule;
@@ -32,20 +33,35 @@ class CA {
 	int[] fineRuleset;
 	int[] bulkRuleset;
 
-	CA (String startConfig, String fineRule, String bulkRule, int rounds) {
+	CA (String startConfig, String granularity, String fineRule, String bulkRule, int rounds) {
 		System.out.println("Plaintext length: " + startConfig.length() );
 		this.state1 = new int[startConfig.length()+4];
 		this.state2 = new int[startConfig.length()+4];
 		this.gState = new int[startConfig.length()+4]; 
 		this.nextState = new int[startConfig.length()+4];
+		this.configLength = startConfig.length()+4;
 
 		for (int i=0; i < state1.length; i++) {
 			this.state1[i] = 0;
 			this.gState[i] = 0;
 		}
+
+		if (granularity == "bulk") {
+			Arrays.fill(this.gState, 0);
+		} else if(granularity == "fine") {
+			for (int i=2; i<this.gState.length-2; i=i+2) {
+				this.gState[i] = 1;
+				this.gState[i+1] = 0;
+			}
+		} else {
+			System.out.println("Wrong/Missing granularity parameter");
+		}
+
+
 		for (int i=0; i < startConfig.length(); i++) {
 			this.state2[i+2] = Integer.parseInt( "" + startConfig.charAt(i) );
 		}
+		this.plaintext = Arrays.copyOf(this.state2, this.state2.length);
 
 		this.fineRuleset = createRuleset(fineRule, 2, 2); //Radius=2, #Zustände=2
 		this.bulkRuleset = createRuleset(bulkRule, 1, 4); //Radius=1, #Zustände=4
@@ -64,6 +80,7 @@ class CA {
 		this.state2 = new int[startConfig.length()+4];
 		this.gState = new int[startConfig.length()+4]; 
 		this.nextState = new int[startConfig.length()+4];
+		this.configLength = startConfig.length()+4;
 
 		for (int i=0; i < state1.length; i++) {
 			this.state1[i] = 0;
@@ -95,7 +112,6 @@ class CA {
 		this.fineRuleset = createRuleset(fineRule, 2, 2);
 		this.bulkRuleset = createRuleset(bulkRule, 1, 4);
 
-
 		this.rounds = rounds;
 	}*/
 
@@ -103,9 +119,10 @@ class CA {
 		this.state1 = Arrays.copyOf(state1, state1.length);
 		this.state2 = Arrays.copyOf(state2, state2.length);
 		this.gState = Arrays.copyOf(gState, gState.length);
+		this.configLength = state1.length;
 
 		this.fineRuleset = Arrays.copyOf(fineRuleset, fineRuleset.length);
-		this.bulkRuleset = Arrays.copyOf(fineRuleset, fineRuleset.length);
+		this.bulkRuleset = Arrays.copyOf(bulkRuleset, bulkRuleset.length); 
 
 		this.rounds = rounds;
 	}
@@ -122,7 +139,7 @@ class CA {
 		for(int i=0; i < s.length(); i++) {
 			ruleset[ numRules - s.length() + i ] = Integer.parseInt( "" + s.charAt(i) );
 		}
-		//System.out.println( Arrays.toString(ruleset) );
+//		System.out.println( Arrays.toString(ruleset) );
 		return ruleset;
 	}
 
@@ -140,8 +157,7 @@ class CA {
 		for(int i=0; i < s.length(); i++) {
 			ruleset[ numRules - s.length() + i ] = Integer.parseInt( "" + s.charAt(i) );
 		}
-		//System.out.println( Arrays.toString(ruleset) + " Length: " + ruleset.length);
-
+//		System.out.println( Arrays.toString(ruleset) + " Length: " + ruleset.length);
 		return ruleset;
 	}
 
@@ -388,7 +404,7 @@ class CA {
 	}
 
 	public static void attack_bulk(int[] plaintext, int[] lastState, int[] granularityState, int[] bulkRuleset, int[] fineRuleset, int rounds) {
-		System.out.println("Attack (bulkRule):");
+		System.out.println("Attack (bulk):");
 		Set<Integer> candidates = new HashSet<Integer>();
 
 		CA[] cas0 = new CA[64];
@@ -401,7 +417,7 @@ class CA {
 			/*Init der beiden Eingabewerte*/
 			//S1: 	0-----001100-------0
 			//S2:   0-----XXXXXX-------0
-			for(int j=2; j<input0.length-2/*+4?*/; j++) {
+			for(int j=0; j<input0.length /*+4?*/; j++) {
 				//Annahme: nicht beeinflußte Bits seien Null bzw. Eins
 				input0[j] = 0;
 				input1[j] = 1;
@@ -432,27 +448,28 @@ class CA {
 			cas0[c] = new CA(plaintext, input0, input0 /*granularityState*/, bulkRuleset, fineRuleset, rounds);
 			cas1[c] = new CA(plaintext, input1, input1 /*granularityState*/, bulkRuleset, fineRuleset, rounds);
 
-			boolean output = false;
-			if (c==6)
-				output = true;
-			else
-				output = false;
 
 			/*Verschlüsselung der Kandidaten*/
-			cas0[c].encrypt(output);
-			cas1[c].encrypt(output);
+			cas0[c].encrypt(false);
+			cas1[c].encrypt(false);
 
 			/*Überprüfung ob letzte Zustand der Verschlüsselung mit dem vorletzten Zustand der Kandidaten übereinstimmt*/
-			if ( compareArrays(cas0[c].nextToLastState, lastState) == true || 
-			 	 compareArrays(cas1[c].nextToLastState, lastState) == true) {
+
+
+			if ( compareArrays(cas0[c].nextToLastState, lastState) == true ) {
+				candidates.add(c);
+				System.out.println("Kandidat " + c);
+			}
+			if ( compareArrays(cas1[c].nextToLastState, lastState) == true ) {
 				candidates.add(c);
 				System.out.println("Kandidat " + c);
 			}
 		}
 	}
 
-	public static void attack_fine(int[] plaintext, int[] lastState,int[] granularityState, int[] bulkRuleset, int[] fineRuleset, int rounds) {
-		System.out.println("Attack (fineRule):");
+
+	public static void attack_fine(int[] plaintext, int[] lastState, int[] granularityState, int[] bulkRuleset, int[] fineRuleset, int rounds) {
+		System.out.println("Attack (fine):");
 		Set<Integer> candidates = new HashSet<Integer>();
 
 		//cas= Cellular AutomataS /*TODO bessere Bezeichnung finden*/
@@ -461,6 +478,12 @@ class CA {
 		//custom input, beeinflußbarer Bereich wird brutegeforced, der Rest ist konstant (0 oder 1)
 		int[] input0 = new int[plaintext.length];
 		int[] input1 = new int[plaintext.length];
+
+		int[] fine_granularity = new int[plaintext.length];
+		for (int i=2; i<fine_granularity.length-2; i=i+2) {
+			fine_granularity[i] = 1;
+			fine_granularity[i+1] = 0;
+		}
 
 		for(int c=0; c<cas0.length; c++) {
 
@@ -490,76 +513,64 @@ class CA {
 				}
 			}
 
-			/*das 2. inputX stimmt nicht*/
-			int[] g0 = gState_step(granularityState, input0);
-			int[] g1 = gState_step(granularityState, input1);
-			cas0[c] = new CA(plaintext, input0, g0, bulkRuleset, fineRuleset, rounds);
-			cas1[c] = new CA(plaintext, input1, g1, bulkRuleset, fineRuleset, rounds);
-			
-			boolean output = false;
-			if (c==31)
-				output = true;
-			else
-				output = false;
+			cas0[c] = new CA(plaintext, input0, fine_granularity, bulkRuleset, fineRuleset, rounds);
+			cas1[c] = new CA(plaintext, input1, fine_granularity, bulkRuleset, fineRuleset, rounds);
 
 			/*Verschlüsselung der Kandidaten*/
-			cas0[c].encrypt(output);
+			boolean output = false;
+			if(c == 31)
+				output = true;
+			cas0[c].encrypt(false);
 			cas1[c].encrypt(output);
 
+
+	
 			/*Überprüfung ob letzte Zustand der Verschlüsselung mit dem vorletzten Zustand der Kandidaten übereinstimmt*/
-			if ( compareArrays(cas0[c].nextToLastState, lastState) == true || 
-			 	 compareArrays(cas1[c].nextToLastState, lastState) == true) {
+			if ( compareArrays(cas0[c].nextToLastState, lastState) == true ) {
 				candidates.add(c);
 				System.out.println("Kandidat " + c);
 			}
+
+			if ( compareArrays(cas1[c].nextToLastState, lastState) == true ) {
+				candidates.add(c);
+				System.out.println("Kandidat " + c);
+			}
+
 		}
 
 	}
 
 	public static void main(String[] args) {
-		String plaintext = "0000000000000000000000000000010000000000000000000000000000000000";
+		String plaintext = "0000000000000000000000000000100000000000000000000000000000000000";
 		String br = "340282366920938463463374607431768211455"; //[0-4**64) "volle" Regel
 		String fr = "4294967295"; //[0-2**32) volle Regel
 		int rounds = 12;
 	
-		//br = "18446744073709551615";
+		//br = "18446744073709551615"; //2**64 - 1
 		br = "34028233592093843463374605431768211455"; 
 		fr = "4274967295";
+		fr = "4204967295";
 		//br = "0";
 		//fr = "0";
 
-		CA ca = new CA(plaintext, fr, br, rounds);
-		ca.encrypt(true);
+		/*encryption and attack with bulk granularity*/
+		CA ca_b = new CA(plaintext,"bulk", fr, br, rounds);
+		ca_b.encrypt(true);
+		int[] granularity_zero = new int[ca_b.configLength]; //should be implicit zero
+		attack_bulk(ca_b.plaintext, ca_b.lastState, granularity_zero, ca_b.bulkRuleset, ca_b.fineRuleset, ca_b.rounds);
 
-	//	attack(String plaintext, int[] lastState, int[] granularityState, String bulkRule, String fineRule, int rounds) {
 
-
-		int[] message = new int[plaintext.length() + 4];
-		int[] granularityState = new int[plaintext.length() + 4];
-		Arrays.fill(granularityState, 0);
-		
-		for(int i=0; i<plaintext.length(); i++) {
-			message[i+2] = Integer.parseInt("" + plaintext.charAt(i) );
+		/*fine granularity case*/
+		plaintext = "0000000000000000000000000000100000000000000000000000000000000000";
+		CA ca_f = new CA(plaintext,"fine", fr, br, rounds);
+		int[] granularityState_fine = new int[ca_f.configLength];
+		for(int i=2; i<granularityState_fine.length-2; i = i+2) {
+			granularityState_fine[i] = 1;
+			granularityState_fine[i+1] = 0;
 		}
-		System.out.println(Arrays.toString(ca.bulkRuleset));
-		attack_bulk(message, ca.lastState, granularityState, ca.bulkRuleset, ca.fineRuleset, ca.rounds);
+		ca_f.encrypt(true);
+		attack_fine(ca_f.plaintext, ca_f.lastState, granularityState_fine, ca_f.bulkRuleset, ca_f.fineRuleset, ca_f.rounds);
 
-
-
-		/*Verschlüsselung und  Angriff für fine-Rule*/
-		/*int[] fine_gState = new int[plaintext.length()+4];
-		for(int i=2; i<fine_gState.length-2; i=i+2) {
-			fine_gState[i] = 0;
-			fine_gState[i+1] = 1;
-		}
-		CA ca_onlyfine = new CA(plaintext, fine_gState, fr, br, rounds);
-		ca_onlyfine.encrypt(true);
-		
-		System.out.println(Arrays.toString(ca_onlyfine.fineRuleset));
-		attack_fine(message, ca_onlyfine.lastState, fine_gState, ca_onlyfine.bulkRuleset, ca_onlyfine.fineRuleset, ca.rounds);
-*/
-
-//		ca.decrypt();
 	}
 
 
