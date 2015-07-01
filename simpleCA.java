@@ -291,11 +291,15 @@ class simpleCA {
 
 		ca.maxRound = 11;
 
-		ca.encrypt(true);
+	//	ca.encrypt(true);
 	
-		attack(ca.plaintext, ca.lastState, ca.rule, ca.maxRound);
+	//	attack(ca.plaintext, ca.lastState, ca.rule, ca.maxRound);
 	
 		//ca.decrypt();
+
+		for (int i=0; i<32; i++) {
+			System.out.print( (int)(Math.random()*3) + "," );
+		}
 	
 	}
 }
