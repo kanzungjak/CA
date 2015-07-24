@@ -5,6 +5,7 @@ import java.util.Set;
 import java.io.*;
 //import java.math.random;
 import myCA.H;
+import myCA.guessedKeysPair;
 
 class CA {
 
@@ -353,7 +354,7 @@ class CA {
 		}
 	}
 
-	public static int[] attack3States (int[] state1, int[] state2, int[] state3, int[] gState) {
+	public static guessedKeysPair attack3States (int[] state1, int[] state2, int[] state3, int[] gState) {
 		int size = state1.length;
 
 		int[] rulesBulk = new int[16];
@@ -372,42 +373,48 @@ class CA {
 				for (int j=-2; j<=2; j++) {
 					nb += state2[ (i+j+size) % size ];
 				}
-				int ruleIndex = Integer.parseInt(nb, 2);
-				rulesFine[ruleIndex] = (state3[i] + state1[i]) % 2;
+				int ruleIndexF = Integer.parseInt(nb, 2);
+				rulesFine[ruleIndexF] = state3[i] ^ state1[i];
 					
 			} else if( (gState[i]==0 && gState[i+1]==0) || (gState[i]==1 && gState[i+1]==1) ) {
 				//Welche Nachbarschaft betrachten wir?
 				String nb = "" + state2[(i-1+size)%size] + state2[i] + state2[ (i+1+size)%size ] + state2[ (i+2+size)%size ];
-				int ruleIndex = Integer.parseInt(nb, 2);
+				int ruleIndexB = Integer.parseInt(nb, 2);
 
 				//Wie lautet der dazugehörige neue Zustand (in Bits)?
-				int firstBit  = (state3[ i ] + state1[ i ]) % 2; //LSB
-				int secondBit = (state3[i+1] + state1[i+1]) % 2;
+				int firstBit  = state3[ i ] ^ state1[ i ]; //LSB
+				int secondBit = state3[i+1] ^ state1[i+1];
+
+
+				if (ruleIndexB == 0) {
+					System.out.println("++++guessing+++++");
+					System.out.println("ruleIndexB  "  +ruleIndexB); //t
+					System.out.println("index " + i);
+					System.out.println(nb);
+					System.out.println("state3: " + state3[i] +"" +state3[i+1]);
+					System.out.println("state1: " + state1[i] +"" +state1[i+1]);
+					System.out.println("rule in binary: " + firstBit + "" + secondBit );
+					System.out.println("rule in decimal " + Integer.parseInt(""+firstBit+secondBit ,2) );
+					System.out.println("---------guessing-----");
+				}
 
 				//... und als natürliche Zahl
-				String bitString = "" + firstBit + secondBit;
+				String bitString = ""  + firstBit + secondBit;
 				int newRule = Integer.parseInt(bitString, 2);
+				/*WAS IST DAS HIER; WARUM GEHT DAS NICHT*/
 
-				/*>***DEBUG*****/
-				/*
-				System.out.println("ruleIndex used: " + ruleIndex);
 
-				if (ruleIndex == 14) {
-					System.out.println("--------------------------");
-					System.out.println("ruleIndex " + ruleIndex);
-					System.out.println("i " + i);
-					System.out.println("nb " + nb );
-					System.out.println("BitString " + bitString);
-					System.out.println("state3 " + state3[i] + state3[i+1]);
-					System.out.println("state1 " + state1[i] + state1[i+1]);
-					System.out.println("index " + ruleIndex + ": " + newRule);
-					System.out.println("--------------------------");
-				}
-				/****DEBUG****
-				*/
+
 
 				//trage den Werte in die Tabelle ein
-				rulesBulk[ruleIndex] = newRule;
+				rulesBulk[ruleIndexB] = newRule;
+
+
+				if (ruleIndexB == 0) {
+					System.out.println("newRule " + newRule);
+					System.out.println(rulesBulk[ruleIndexB]);
+				}
+
 
 				//Da es eine bulk Regel ist, können wir eine Zelle überspringen
 				i++;
@@ -418,17 +425,14 @@ class CA {
 				for (int j=-2; j<=2; j++) {
 					nb += state2[ (i+j+size) % size ];
 				}
-				int ruleIndex = Integer.parseInt(nb, 2);
-				rulesFine[ruleIndex] = (state3[i] + state1[i]) % 2;
+				int ruleIndexF = Integer.parseInt(nb, 2);
+				rulesFine[ruleIndexF] = state3[i] ^ state1[i];
 				
 			}
 		}
 
 
-		//System.out.println(Arrays.toString(rulesFine) );
-		//System.out.println(Arrays.toString(rulesBulk) );
-
-		return rulesBulk;
+		return new guessedKeysPair(rulesFine, rulesBulk);
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -458,7 +462,8 @@ class CA {
 
 		//feste Keys
 		int[] fineRuleset = {1,0,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,1,0,0,0,1,1,0,0};
-		int[] bulkRuleset = {0,0,2,0,3,1,3,3,3,0,2,2,3,2,2,2};
+		//int[] bulkRuleset = {0,0,2,0,3,1,3,3,3,0,2,2,3,2,2,2};
+		int[] bulkRuleset = {2,2,1,1,1,2,1,2,1,1,2,1,2,1,2,1};
 		System.out.println("bulkLength " + bulkRuleset.length);
 		//int[] bulkRuleset = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -466,7 +471,7 @@ class CA {
 		CA za = new CA( H.StringToInt(s1), H.StringToInt(s2), H.StringToInt(g), bulkRuleset, fineRuleset, 16, "out1");
 		//CA za2 = new CA( H.StringToInt(s2), H.StringToInt(s1), H.StringToInt(s2), bulkRuleset, fineRuleset, 16, "out2");
 
-		za.encrypt(true);
+		za.encrypt(false);
 
 		
 		//3 hintereinander folgende Zeilen für den Angriff einlesen
@@ -489,25 +494,46 @@ class CA {
 			cg_int[i] = Integer.parseInt("" +  cg.charAt(i) );
 		}
 
-		int[] guessedKeysBulk = attack3States(c1_int, c2_int, c3_int, cg_int);
+		guessedKeysPair guessedKeys = attack3States(c1_int, c2_int, c3_int, cg_int);
+		
+		int[] guessedKeysFine = guessedKeys.getFine();
+		int[] guessedKeysBulk = guessedKeys.getBulk();
 
-
-		//System.out.println(Arrays.toString(fineRuleset) );
+		
+		System.out.println("Fine Keys: ");
+		System.out.println( Arrays.toString(guessedKeysFine));
+		System.out.println(Arrays.toString(fineRuleset) );
+		
+		System.out.println("Bulk Keys: ");
 		System.out.println( Arrays.toString(guessedKeysBulk) );
 		System.out.println( Arrays.toString(bulkRuleset) );
 
-		int ctr = 0;
+		
+		int ctr_b = 0;
 		for (int i=0; i<bulkRuleset.length; i++) {
 			if (guessedKeysBulk[i]!=5 ) {
 				if (guessedKeysBulk[i]!=bulkRuleset[i] ) {
-					System.out.println("Missmatch at index " + i);
+					System.out.println("Missmatch (bulk) at index " + i);
 				} else {
-					ctr++;
+					ctr_b++;
 				}
 			}
 		}
-		System.out.println("Guessed Keys (bulk): " + ctr);
+		System.out.println("Guessed Keys (bulk): " + ctr_b);
 
+		
+		int ctr_f = 0;
+		for (int i=0; i<bulkRuleset.length; i++) {
+			if (guessedKeysFine[i]!=5 ) {
+				if (guessedKeysFine[i]!=fineRuleset[i] ) {
+					System.out.println("Missmatch (fine) at index " + i);
+				} else {
+					ctr_f++;
+				}
+			}
+		}
+		System.out.println("Guessed Keys (fine): " + ctr_f);
+		
 
 
 		/******************Aufräumen*****************/

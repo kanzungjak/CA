@@ -7,8 +7,8 @@ import java.io.*;
 
 public class H {
 
-	public static int getBit(int n, int k) {
-    	return (n >> k) & 1;
+	public static int getBit(int num, int pos) {
+    	return (num >> pos) & 1;
 	}
 
 	public static void printState(int[] state) {
@@ -139,6 +139,22 @@ public class H {
 		return out;
 	}
 
+	public static int[] gState_step (int[] gState, int[] state) {
+		int[] newState = new int[gState.length];
+
+		if (gState.length != state.length) {
+			System.out.println("gState_step: unequal length");
+			Arrays.fill(newState, -1);
+			return newState;
+		}
+
+		for(int i=0; i<gState.length; i++) {
+			//newState[i] = (gState[i] + state[i]) % 2;
+			newState[i] = gState[i] ^ state[i];
+		}
+		return newState;
+	}
+
 	public static int localstep_fine (int[] state1, int[] state2, int index, int[] ruleset) {
 		int l = state1.length;
 
@@ -152,7 +168,8 @@ public class H {
 
 		//usedKeysF[ruleIndex] = 1;
 
-		return (ruleset[ruleIndex] + state1[index]) % 2;
+		//return (ruleset[ruleIndex] + state1[index]) % 2;
+		return ruleset[ruleIndex] ^ state1[index];
 	}
 
 	//braucht nur 16 Einträge, da wir aber c={0,1,2,3} erhalten können ist die
@@ -164,56 +181,26 @@ public class H {
  		String nb = "" + state2[(index-1+l)%l] + state2[index] + state2[ (index+1)%l ] + state2[ (index+2)%l ];
 		int ruleIndex = Integer.parseInt(nb, 2);
 
-		/*if(ruleIndex==15) { //DEBUG
-			System.out.println("ruleIndex" +  ruleIndex);
-			System.out.println("rule "+ ruleset[ruleIndex]);
-			System.out.println("s1 " +  state1[index] +  state1[index+1]);
-			System.out.println("bits " + getBit(ruleset[ruleIndex], 1) +getBit(ruleset[ruleIndex], 0) );
-		}*/
-
 		//usedKeysB[ruleIndex] = 1;
 
 		int MSB = getBit(ruleset[ruleIndex], 1);
 		int LSB = getBit(ruleset[ruleIndex], 0);
 
-		nextState[0] = (MSB + state1[ index   ]) % 2;
-		nextState[1] = (LSB + state1[ index+1 ]) % 2;
-
-		/*
-		System.out.println(ruleIndex);
-		System.out.println(nb);
-		if (ruleIndex == 7) {
-			System.out.println("***********************");
-			System.out.println("ruleIndex " +ruleIndex );
-			System.out.println("ruleset " + ruleset[ruleIndex] );
-			System.out.println("***********************");
-		}
-
+		nextState[0] = MSB ^ state1[ index   ];
+		nextState[1] = LSB ^ state1[ index+1 ];
 
 		
-		if(ruleIndex==14) { //DEBUG
-			System.out.println("+++++++++++++++++++++++++++");
-			System.out.println("ruleindex " + ruleIndex);
-			System.out.println("at i = " + index);
-			System.out.println("nb " + nb );
-			System.out.println("Bits " + MSB + LSB);
-			System.out.println("state1 " + state1[index] + state1[index+1]);
-			System.out.println("res " + nextState[0] + nextState[1]);
-			System.out.println("++++++++++++++++++++++++++++");
-
+		if(ruleIndex==0) {
+			System.out.println("enc*************");
+			System.out.println(nb);
+			System.out.println("ruleset: " + ruleset[ruleIndex]);
+			System.out.println(MSB + "" + LSB);
+			System.out.println(nextState[0] + "" + nextState[1]);
+			System.out.println("enc*************");
 		}
-
-		if (index==26 ) {
-			System.out.println("ruleIndex " +ruleIndex);
-			System.out.println("rulset " + ruleset[ruleIndex]);
-			System.out.println("MSB " + MSB);
-			System.out.println("LSB " +LSB );
-		}*/
 
 		return nextState;
 	}
-
-
 
 	public static int[] globalstep(int[] state1, int[] state2, int[] gState, int[] fineRuleset, int[] bulkRuleset) {
 		int[] newState = new int[state1.length];
@@ -226,16 +213,8 @@ public class H {
 			/*bulky cells*/
 			} else if ( (gState[i] == 1 && gState[i+1] == 1) || (gState[i] == 0 && gState[i+1] == 0) ) {
 				int[] tmp = localstep_bulk(state1, state2, i , bulkRuleset);
-				newState[ i ] = tmp[1];
-				newState[i+1] = tmp[0];
-
-				/*
-				if(i==26) {
-					System.out.println("globalstep");
-					System.out.println(newState[i] +""+ newState[i+1]);
-					System.out.println(tmp[0] +"" +tmp[1]);
-				}*/
-
+				newState[ i ] = tmp[0];
+				newState[i+1] = tmp[1];
 				i++;
 
 			/*fine cell*/
@@ -247,19 +226,5 @@ public class H {
 		return newState;
 	}
 
-	public static int[] gState_step (int[] gState, int[] state) {
-		int[] newState = new int[gState.length];
-
-		if (gState.length != state.length) {
-			System.out.println("gState_step: unequal length");
-			Arrays.fill(newState, -1);
-			return newState;
-		}
-
-		for(int i=0; i<gState.length; i++) {
-			newState[i] = (gState[i] + state[i]) % 2;
-		}
-		return newState;
-	}
 
 }
