@@ -188,17 +188,7 @@ public class H {
 
 		nextState[0] = MSB ^ state1[ index   ];
 		nextState[1] = LSB ^ state1[ index+1 ];
-
 		
-		if(ruleIndex==0) {
-			System.out.println("enc*************");
-			System.out.println(nb);
-			System.out.println("ruleset: " + ruleset[ruleIndex]);
-			System.out.println(MSB + "" + LSB);
-			System.out.println(nextState[0] + "" + nextState[1]);
-			System.out.println("enc*************");
-		}
-
 		return nextState;
 	}
 

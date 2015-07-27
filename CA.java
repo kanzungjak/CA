@@ -385,36 +385,13 @@ class CA {
 				int firstBit  = state3[ i ] ^ state1[ i ]; //LSB
 				int secondBit = state3[i+1] ^ state1[i+1];
 
-
-				if (ruleIndexB == 0) {
-					System.out.println("++++guessing+++++");
-					System.out.println("ruleIndexB  "  +ruleIndexB); //t
-					System.out.println("index " + i);
-					System.out.println(nb);
-					System.out.println("state3: " + state3[i] +"" +state3[i+1]);
-					System.out.println("state1: " + state1[i] +"" +state1[i+1]);
-					System.out.println("rule in binary: " + firstBit + "" + secondBit );
-					System.out.println("rule in decimal " + Integer.parseInt(""+firstBit+secondBit ,2) );
-					System.out.println("---------guessing-----");
-				}
-
 				//... und als natürliche Zahl
 				String bitString = ""  + firstBit + secondBit;
 				int newRule = Integer.parseInt(bitString, 2);
 				/*WAS IST DAS HIER; WARUM GEHT DAS NICHT*/
 
-
-
-
 				//trage den Werte in die Tabelle ein
 				rulesBulk[ruleIndexB] = newRule;
-
-
-				if (ruleIndexB == 0) {
-					System.out.println("newRule " + newRule);
-					System.out.println(rulesBulk[ruleIndexB]);
-				}
-
 
 				//Da es eine bulk Regel ist, können wir eine Zelle überspringen
 				i++;
